@@ -93,7 +93,7 @@ max_seq_length_train=config['batches']['max_seq_length_train']
 forward_save_files=list(map(strtobool,config['forward']['save_out_file'].split(',')))
 
 
-print("- Reading config file......OK!")
+sys.stderr.write("- Reading config file......OK!\n")
 
      
 # Copy the global cfg file into the output folder
@@ -116,7 +116,7 @@ create_lists(config)
 # Writing the config files
 create_configs(config)  
 
-print("- Chunk creation......OK!\n")
+sys.stderr.write("- Chunk creation......OK!\n")
 
 # create res_file
 res_file_path=out_folder+'/res.res'
@@ -180,7 +180,7 @@ for ep in range(N_ep):
     tr_time_tot=0
     val_time_tot=0
     
-    print('------------------------------ Epoch %s / %s ------------------------------'%(format(ep, N_ep_str_format),format(N_ep-1, N_ep_str_format)))
+    sys.stderr.write('------------------------------ Epoch %s / %s ------------------------------\n'%(format(ep, N_ep_str_format),format(N_ep-1, N_ep_str_format)))
 
     for tr_data in tr_data_lst:
         
@@ -213,7 +213,7 @@ for ep in range(N_ep):
             # if this chunk has not already been processed, do training...
             if not(os.path.exists(info_file)):
                 
-                    print('Training %s chunk = %i / %i' %(tr_data,ck+1, N_ck_tr))
+                    sys.stderr.write('Training %s chunk = %i / %i\n' %(tr_data,ck+1, N_ck_tr))
                                  
                     # getting the next chunk 
                     next_config_file=cfg_file_list[op_counter]
@@ -255,7 +255,7 @@ for ep in range(N_ep):
                         info_file = get_val_info_file_path(out_folder, valid_data, ep, ck, ck_val, N_ep_str_format, N_ck_str_format, N_ck_str_format_val)
                         config_chunk_file = get_val_cfg_file_path(out_folder, valid_data, ep, ck, ck_val, N_ep_str_format, N_ck_str_format, N_ck_str_format_val)
                         if not(os.path.exists(info_file)):
-                            print('Validating %s chunk = %i / %i' %(valid_data, ck_val+1, N_ck_valid))
+                            sys.stderr.write('Validating %s chunk = %i / %i\n' %(valid_data, ck_val+1, N_ck_valid))
                             next_config_file = cfg_file_list[op_counter]
                             data_name, data_set, data_end_index, fea_dict, lab_dict, arch_dict = run_nn(data_name, data_set, data_end_index, fea_dict, lab_dict, arch_dict, config_chunk_file, processed_first, next_config_file)
                             processed_first = False
@@ -307,9 +307,9 @@ for forward_data in forward_data_lst:
          for ck in range(N_ck_forward):
             
             if not is_production:
-                print('Testing %s chunk = %i / %i' %(forward_data,ck+1, N_ck_forward))
+                sys.stderr.write('Testing %s chunk = %i / %i\n' %(forward_data,ck+1, N_ck_forward))
             else: 
-                print('Forwarding %s chunk = %i / %i' %(forward_data,ck+1, N_ck_forward))
+                sys.stderr.write('Forwarding %s chunk = %i / %i\n' %(forward_data,ck+1, N_ck_forward))
             
             # output file
             info_file=out_folder+'/exp_files/forward_'+forward_data+'_ep'+format(ep, N_ep_str_format)+'_ck'+format(ck, N_ck_str_format)+'.info'
@@ -374,7 +374,7 @@ for data in forward_data_lst:
     for k in range(len(forward_outs)):
         if forward_dec_outs[k]:
             
-            print('Decoding %s output %s' %(data,forward_outs[k]))
+            sys.stderr.write('Decoding %s output %s\n' %(data,forward_outs[k]))
             
             info_file=out_folder+'/exp_files/decoding_'+data+'_'+forward_outs[k]+'.info'
             
@@ -441,7 +441,8 @@ for data in forward_data_lst:
             wers=run_shell(cmd_res,log_file).decode('utf-8')
             res_file = open(res_file_path, "a")
             res_file.write('%s\n'%wers)
-            print(wers)
+            sys.stderr.write(wers)
+            sys.stderr.write('\n')
 
 # Saving Loss and Err as .txt and plotting curves
 if not is_production:
