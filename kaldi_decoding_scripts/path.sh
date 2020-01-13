@@ -1,4 +1,10 @@
-#export KALDI_ROOT=~/kaldi-trunk/
-[ -f $KALDI_ROOT/tools/env.sh ] && . $KALDI_ROOT/tools/env.sh 
-export PATH=$PWD/utils/:$KALDI_ROOT/src/bin:$KALDI_ROOT/tools/openfst/bin:$KALDI_ROOT/tools/irstlm/bin/:$KALDI_ROOT/src/fstbin/:$KALDI_ROOT/src/gmmbin/:$KALDI_ROOT/src/featbin/:$KALDI_ROOT/src/lm/:$KALDI_ROOT/src/sgmmbin/:$KALDI_ROOT/src/sgmm2bin/:$KALDI_ROOT/src/fgmmbin/:$KALDI_ROOT/src/latbin/:$KALDI_ROOT/src/nnetbin:$KALDI_ROOT/src/nnet2bin/:$KALDI_ROOT/src/kwsbin:$PWD:$PATH
+export OPENBLAS_NUM_THREADS=1
+export PYTHONIOENCODING='utf-8'
+export PATH="$PWD/utils:$PWD:$PATH"
+
+module load kaldi/2018.09.03-1ab3df0-GCC-6.4.0-openblas phonetisaurus anaconda3 sph2pipe m2m-aligner openfst/1.6.6-GCC-6.4.0 xmlstarlet sox
+
+module list
+
+export LD_LIBRARY_PATH=/scratch/work/singhm2/resources/openblas/OpenBLAS-0.3.3-root/lib:$LD_LIBRARY_PATH
 export LC_ALL=C

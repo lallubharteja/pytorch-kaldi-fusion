@@ -309,7 +309,6 @@ for ep in range(N_ep):
                     N_ck_valid = compute_n_chunks(out_folder, valid_data, ep, N_ep_str_format, "valid")
                     N_ck_str_format_val = "0" + str(max(math.ceil(np.log10(N_ck_valid)), 1)) + "d"
                     for ck_val in range(N_ck_valid):
-                        =======
                         info_file = get_val_info_file_path(
                             out_folder,
                             valid_data,
@@ -610,7 +609,7 @@ for data in forward_data_lst:
                         os.remove(rem_ark)
 
             # Print WER results and write info file
-            cmd_res = "./check_res_dec.sh " + out_dec_folder
+            cmd_res = "./pytorch-kaldi/check_res_dec.sh " + out_dec_folder
             wers = run_shell(cmd_res, log_file).decode("utf-8")
             res_file = open(res_file_path, "a")
             res_file.write('%s\n'%wers)

@@ -17,6 +17,7 @@ from distutils.util import strtobool
 import importlib
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import math
 
@@ -1560,7 +1561,7 @@ def parse_model_field(cfg_file):
 
         if not re.match(pattern, line):
             sys.stderr.write(
-                "ERROR: all the entries must be of the following type: output=operation(str,str), got (%s)\n" % (line)
+                "ERROR: all the entries must be of the following type: output=operation(str,str) or output=operation(str), got (%s)\n" % (line)
             )
             sys.exit(0)
         else:
@@ -1609,7 +1610,7 @@ def parse_model_field(cfg_file):
                                 )
                                 sys.exit(0)
 
-                    # Update the list of possible inpus
+                    # Update the list of possible inputs
                     possible_inputs.append(out_name)
                     break
 
@@ -2034,8 +2035,10 @@ def model_init(inp_out_dict, model, config, arch_dict, use_cuda, multi_gpu, to_d
 
     nns = {}
     costs = {}
+    ls_value = 0.0
 
     for line in model:
+        
         [out_name, operation, inp1, inp2] = list(re.findall(pattern, line)[0])
 
         if operation == "compute":
@@ -2076,8 +2079,26 @@ def model_init(inp_out_dict, model, config, arch_dict, use_cuda, multi_gpu, to_d
             # updating output dim
             inp_out_dict[out_name] = [out_dim]
 
-        if operation == "concatenate":
+        if operation == "softmax":
+            # computing input dim
+            inp_dim = inp_out_dict[inp1][-1]
 
+            costs[out_name] = nn.LogSoftmax(dim=1)
+            inp_out_dict[out_name] = [inp_dim]
+        
+        if operation == "shallow_fusion":
+            alpha = float(inp2)
+
+            inp_h = inp1.split(",")
+            inp1 = inp_h[0]
+
+            # computing input dim
+            inp_dim = inp_out_dict[inp1][-1]
+
+            costs[out_name] = ShallowFusion(alpha)
+            inp_out_dict[out_name] = [inp_dim]
+
+        if operation == "concatenate":
             inp_dim1 = inp_out_dict[inp1][-1]
             inp_dim2 = inp_out_dict[inp2][-1]
 
@@ -2087,7 +2108,22 @@ def model_init(inp_out_dict, model, config, arch_dict, use_cuda, multi_gpu, to_d
             costs[out_name] = nn.NLLLoss()
             inp_out_dict[out_name] = [1]
 
+        if operation == "cost_ls":
+            ls_value = float(inp2)
+            costs[out_name] = LabelSmoothingLoss(ls_value, out_dim)
+            inp_out_dict[out_name] = [1]
+
+        if operation == "cost_kd":
+            temperature = float(inp2)
+            inp_h = inp1.split(",")
+            alpha = float(inp_h[3])
+            costs[out_name] = KnowledgeDistillationLoss(alpha, temperature)
+            inp_out_dict[out_name] = [1]
+
         if operation == "cost_err":
+            inp_out_dict[out_name] = [1]
+
+        if operation == "cost_err_kd":
             inp_out_dict[out_name] = [1]
 
         if (
@@ -2241,19 +2277,35 @@ def forward_model_refac01(
     outs_dict = {}
     _add_input_features_to_outs_dict(fea_dict, outs_dict, inp)
     layer_string_pattern = "(.*)=(.*)\((.*),(.*)\)"
+
     for line in model:
         out_name, operation, inp1, inp2 = list(re.findall(layer_string_pattern, line)[0])
+
         if operation == "compute":
             outs_dict, do_break = _compute_layer_values(
                 inp_out_dict, inp2, inp, inp1, max_len_fea, batch_size, arch_dict, out_name, nns, outs_dict, to_do
             )
             if do_break:
                 break
-        elif operation == "cost_nll":
+        elif operation == "cost_nll" or operation == "cost_ls": 
+            if operation == "cost_ls":
+                inp_h = inp1.split(",")
+                inp1 = inp_h[0]
+                inp2 = inp_h[1]
             lab_dnn = _get_labels_from_input(ref, inp2, lab_dict)
             out = _get_network_output(outs_dict, inp1, max_len_lab, batch_size)
             if to_do != "forward":
                 outs_dict[out_name] = costs[out_name](out, lab_dnn)
+        elif operation == "cost_kd":
+            inp_h = inp1.split(",")
+            inp1 = inp_h[0]
+            inp2 = inp_h[1]
+            inp3 = inp_h[2]
+            lab_dnn = _get_labels_from_input(ref, inp3, lab_dict)
+            out_t = _get_network_output(outs_dict, inp1, max_len_lab, batch_size)
+            out_s = _get_network_output(outs_dict, inp2, max_len_lab, batch_size)
+            if to_do != "forward":
+                outs_dict[out_name] = costs[out_name](out_t, out_s, lab_dnn)
         elif operation == "cost_err":
             lab_dnn = _get_labels_from_input(ref, inp2, lab_dict)
             out = _get_network_output(outs_dict, inp1, max_len_lab, batch_size)
@@ -2261,9 +2313,34 @@ def forward_model_refac01(
                 pred = torch.max(out, dim=1)[1]
                 err = torch.mean((pred != lab_dnn).float())
                 outs_dict[out_name] = err
+        elif operation == "cost_err_kd":
+            lab_dnn = _get_labels_from_input(ref, inp2, lab_dict)
+            out = _get_network_output(outs_dict, inp1, max_len_lab, batch_size)
+            if to_do != "forward":
+                pred = torch.max(nn.LogSoftmax(dim=1)(out), dim=1)[1]
+                err = torch.mean((pred != lab_dnn).float())
+                outs_dict[out_name] = err
+        elif operation == "softmax":
+            outs_dict[out_name] = costs[out_name](outs_dict[inp1]/float(inp2))
+        elif operation == "shallow_fusion":
+            inp_h = inp1.split(",")
+            inp1 = inp_h[0]
+            inp2 = inp_h[1]
+            out_t = _get_network_output(outs_dict, inp1, max_len_lab, batch_size)
+            out_s = _get_network_output(outs_dict, inp2, max_len_lab, batch_size)
+            if to_do != "forward":
+                outs_dict[out_name] = costs[out_name](out_t, out_s)
         elif operation == "concatenate":
-            dim_conc = len(outs_dict[inp1].shape) - 1
-            outs_dict[out_name] = torch.cat((outs_dict[inp1], outs_dict[inp2]), dim_conc)  # check concat axis
+            inp1_m = outs_dict[inp1]
+            inp2_m = outs_dict[inp2]
+            if len(inp1_m.shape) == 3 and len(inp2_m.shape) == 2:
+                inp1_m = inp1_m.view(max_len * batch_size, -1)
+
+            if len(inp1_m.shape) == 2 and len(inp2_m.shape) == 3:
+                inp2_m = inp2_m.view(max_len * batch_size, -1)
+            dim_conc = len(inp1_m.shape) - 1
+ 
+            outs_dict[out_name] = torch.cat((inp1_m, inp2_m), dim_conc)  # check concat axis
             if to_do == "forward" and out_name == forward_outs[-1]:
                 break
         elif operation == "mult":
@@ -2301,6 +2378,8 @@ def forward_model(
     outs_dict = {}
     pattern = "(.*)=(.*)\((.*),(.*)\)"
 
+    
+   
     # adding input features to out_dict:
     for fea in fea_dict.keys():
         if len(inp.shape) == 3 and len(fea_dict[fea]) > 1:
@@ -2341,7 +2420,11 @@ def forward_model(
             if to_do == "forward" and out_name == forward_outs[-1]:
                 break
 
-        if operation == "cost_nll":
+        if operation == "cost_nll" or operation == "cost_ls":
+            if operation == "cost_ls":
+                inp_h = inp1.split(",")
+                inp1 = inp_h[0]
+                inp2 = inp_h[1]
 
             # Put labels in the right format
             if len(inp.shape) == 3:
@@ -2359,6 +2442,34 @@ def forward_model(
 
             if to_do != "forward":
                 outs_dict[out_name] = costs[out_name](out, lab_dnn)
+
+        if operation == "cost_kd":
+            inp_h = inp1.split(",")
+            inp1 = inp_h[0]
+            inp2 = inp_h[1]
+            inp3 = inp_h[2]
+
+            # Put labels in the right format
+            if len(inp.shape) == 3:
+                lab_dnn = inp[:, :, lab_dict[inp3][3]]
+            if len(inp.shape) == 2:
+                lab_dnn = inp[:, lab_dict[inp3][3]]
+            
+            lab_dnn = lab_dnn.view(-1).long()
+
+            # put output in the right format
+            out_t = outs_dict[inp1]
+
+            if len(out_t.shape) == 3:
+                out_t = out_t.view(max_len * batch_size, -1)
+
+            out_s = outs_dict[inp2]
+
+            if len(out_s.shape) == 3:
+                out_s = out_s.view(max_len * batch_size, -1)
+
+            if to_do != "forward":
+                outs_dict[out_name] = costs[out_name](out_t, out_s, lab_dnn)
 
         if operation == "cost_err":
 
@@ -2381,9 +2492,55 @@ def forward_model(
                 outs_dict[out_name] = err
                 # print(err)
 
+        if operation == "cost_err_kd":
+
+            if len(inp.shape) == 3:
+                lab_dnn = inp[:, :, lab_dict[inp2][3]]
+            if len(inp.shape) == 2:
+                lab_dnn = inp[:, lab_dict[inp2][3]]
+
+            lab_dnn = lab_dnn.view(-1).long()
+
+            # put output in the right format
+            out = outs_dict[inp1]
+
+            if len(out.shape) == 3:
+                out = out.view(max_len * batch_size, -1)
+
+            if to_do != "forward":
+                pred = torch.max(nn.LogSoftmax(dim=1)(out), dim=1)[1]
+                err = torch.mean((pred != lab_dnn).float())
+                outs_dict[out_name] = err
+                # print(err)
+
+        if operation == "softmax":
+            outs_dict[out_name] = costs[out_name](outs_dict[inp1]/float(inp2))
+            if to_do == "forward" and out_name == forward_outs[-1]:
+                break
+
+        if operation == "shallow_fusion":
+            inp_h = inp1.split(",")
+            inp1 = inp_h[0]
+            inp2 = inp_h[1]
+
+            out_t = outs_dict[inp1]
+            out_s = outs_dict[inp2]
+            outs_dict[out_name] = costs[out_name](out_t, out_s)
+
+            if to_do == "forward" and out_name == forward_outs[-1]:
+                break
+
         if operation == "concatenate":
-            dim_conc = len(outs_dict[inp1].shape) - 1
-            outs_dict[out_name] = torch.cat((outs_dict[inp1], outs_dict[inp2]), dim_conc)  # check concat axis
+            inp1_m = outs_dict[inp1]
+            inp2_m = outs_dict[inp2]
+            if len(inp1_m.shape) == 3 and len(inp2_m.shape) == 2:
+                inp1_m = inp1_m.view(max_len * batch_size, -1)
+
+            if len(inp1_m.shape) == 2 and len(inp2_m.shape) == 3:
+                inp2_m = inp2_m.view(max_len * batch_size, -1)
+            dim_conc = len(inp1_m.shape) - 1
+
+            outs_dict[out_name] = torch.cat((inp1_m, inp2_m), dim_conc)  # check concat axis
             if to_do == "forward" and out_name == forward_outs[-1]:
                 break
 
@@ -2699,3 +2856,86 @@ def expand_str_ep(str_compact, type_inp, N_ep, split_elem, mult_elem):
         sys.exit(0)
 
     return lst_out
+
+
+class LabelSmoothingLoss(nn.Module):
+    """
+    With label smoothing,
+    KL-divergence between q_{smoothed ground truth prob.}(w)
+    and p_{prob. computed by model}(w) is minimized.
+    """
+    def __init__(self, label_smoothing, tgt_vocab_size, ignore_index=-100):
+        assert 0.0 < label_smoothing <= 1.0
+        self.ignore_index = ignore_index
+        super(LabelSmoothingLoss, self).__init__()
+
+        smoothing_value = label_smoothing / (tgt_vocab_size - 2)
+        one_hot = torch.full((tgt_vocab_size,), smoothing_value)
+        one_hot[self.ignore_index] = 0
+        self.register_buffer('one_hot', one_hot.unsqueeze(0))
+
+        self.confidence = 1.0 - label_smoothing
+
+    def forward(self, output, target):
+        """
+        output (FloatTensor): batch_size x n_classes
+        target (LongTensor): batch_size
+        """
+        model_prob = self.one_hot.repeat(target.size(0), 1)
+        if target.is_cuda:
+            model_prob = model_prob.cuda()
+        model_prob.scatter_(1, target.unsqueeze(1), self.confidence)
+        model_prob.masked_fill_((target == self.ignore_index).unsqueeze(1), 0)
+
+        return F.kl_div(output, model_prob, reduction='sum')
+
+class KnowledgeDistillationLoss(nn.Module):
+    """
+    With knowledge distillation,
+    Cross entropy between ground truth 
+    and prob. computed by the model plus
+    KL-divergence between q_{teacher network prob.}(w)
+    and p_{prob. computed by model}(w) is minimized.
+    """
+    def __init__(self, alpha, temperature):
+        assert 0.0 <= alpha <= 1.0
+        assert 0.0 < temperature
+        super(KnowledgeDistillationLoss, self).__init__()
+        
+        self.alpha = alpha
+        self.temperature = temperature
+
+
+    def forward(self, output_t, output_s, target):
+        """
+        output_s (FloatTensor): batch_size x n_classes
+        target (LongTensor): batch_size
+        output_t (FloatTensor): batch_size x n_classes
+        """
+        
+        T = self.temperature
+        KD_loss = nn.KLDivLoss()(F.log_softmax(output_s/T, dim=1),
+                             F.softmax(output_t/T, dim=1)) * (self.alpha * T * T) + \
+              F.cross_entropy(output_s, target) * (1. - self.alpha)
+        return KD_loss
+
+class ShallowFusion(nn.Module):
+    """
+    With shallow fusion,
+    the softmax of inputs are interpolated
+    linearly based on the weight provided.
+    """
+
+    def __init__(self, alpha):
+        assert 0.0 <= alpha <= 1.0
+        super(ShallowFusion, self).__init__()
+        self.alpha = alpha
+
+    def forward(self, output_t, output_s):
+        """
+        output_s (FloatTensor): batch_size x n_classes
+        output_t (FloatTensor): batch_size x n_classes
+        """
+        
+        out = F.softmax(output_s, dim=1) * self.alpha + F.softmax(output_t, dim=1) * (1.0 - self.alpha)
+        return torch.log(out)

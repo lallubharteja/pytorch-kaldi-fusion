@@ -1760,3 +1760,16 @@ class PASE(nn.Module):
         output = self.pase(x)
 
         return output
+
+class SimpleActivationLayer(nn.Module):
+    def __init__(self, options, inp_dim):
+        super(SimpleActivationLayer, self).__init__()
+        
+        # This adhoc layer only applies the available activation function to its input. 
+        self.input_dim = inp_dim
+        self.act = act_fun(options["layer_act"])
+        self.out_dim = inp_dim
+
+    def forward(self, x):
+        return self.act(x)
+
