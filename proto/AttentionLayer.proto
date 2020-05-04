@@ -1,0 +1,7 @@
+[proto]
+att_n_comb=int
+att_n_head=int
+att_key_dim=int
+att_value_dim=int
+att_dropout=float(0,1)
+att_add_residual=bool
