@@ -14,7 +14,7 @@ import re, gzip, struct
 
 
 def load_dataset(
-    fea_scp, fea_opts, lab_folder, lab_opts, left, right, max_sequence_length, output_folder, fea_only=False
+    fea_scp, fea_opts, lab_folder, lab_opts, left, right, max_sequence_length, output_folder, fea_only=False, lab_vec_dict=None
 ):
     def _input_is_wav_file(fea_scp):
         with open(fea_scp, "r") as f:
@@ -27,7 +27,7 @@ def load_dataset(
     def _input_is_feature_file(fea_scp):
         return not _input_is_wav_file(fea_scp)
 
-    def _read_features_and_labels_with_kaldi(fea_scp, fea_opts, fea_only, lab_folder, lab_opts, output_folder):
+    def _read_features_and_labels_with_kaldi(fea_scp, fea_opts, fea_only, lab_folder, lab_opts, output_folder, lab_vec_dict=None):
         fea = dict()
         lab = dict()
         if _input_is_feature_file(fea_scp):
@@ -41,14 +41,20 @@ def load_dataset(
             for k, m in read_function("ark:" + kaldi_bin + " scp:" + fea_scp + " ark:- |" + fea_opts, output_folder)
         }
         if not fea_only:
-            lab = {
-                k: v
-                for k, v in read_vec_int_ark(
-                    "gunzip -c " + lab_folder + "/ali*.gz | " + lab_opts + " " + lab_folder + "/final.mdl ark:- ark:-|",
-                    output_folder,
-                )
-                if k in fea
-            }  # Note that I'm copying only the aligments of the loaded fea
+            if lab_vec_dict is None:
+                lab = {
+                    k: v
+                    for k, v in read_vec_int_ark(
+                        "gunzip -c " + lab_folder + "/ali*.gz | " + lab_opts + " " + lab_folder + "/final.mdl ark:- ark:-|",
+                        output_folder,
+                    )
+                    if k in fea
+                }  # Note that I'm copying only the aligments of the loaded fea
+            else:
+                lab = {
+                    k: v
+                    for k, v in lab_vec_dict.items() if k in fea
+                }
             fea = {
                 k: v for k, v in fea.items() if k in lab
             }  # This way I remove all the features without an aligment (see log file in alidir "Did not Succeded")
@@ -200,7 +206,7 @@ def load_dataset(
             fea[k] = _adjust_feature_sequence_length(fea[k], nr_of_fea_for_lab)
         return fea, lab
 
-    fea, lab = _read_features_and_labels_with_kaldi(fea_scp, fea_opts, fea_only, lab_folder, lab_opts, output_folder)
+    fea, lab = _read_features_and_labels_with_kaldi(fea_scp, fea_opts, fea_only, lab_folder, lab_opts, output_folder, lab_vec_dict)
     if _input_is_wav_file(fea_scp) and (not fea_only):
         fea, lab = _match_feature_and_label_sequence_lengths(fea, lab, max_sequence_length)
     fea_chunks, lab_chunks, chunk_names = _chunk_features_and_labels(
@@ -242,12 +248,12 @@ def context_window(fea, left, right):
 
 
 def load_chunk(
-    fea_scp, fea_opts, lab_folder, lab_opts, left, right, max_sequence_length, output_folder, fea_only=False
+    fea_scp, fea_opts, lab_folder, lab_opts, left, right, max_sequence_length, output_folder, fea_only=False, lab_vec_dict=None
 ):
 
     # open the file
     [data_name, data_set, data_lab, end_index_fea, end_index_lab] = load_dataset(
-        fea_scp, fea_opts, lab_folder, lab_opts, left, right, max_sequence_length, output_folder, fea_only
+        fea_scp, fea_opts, lab_folder, lab_opts, left, right, max_sequence_length, output_folder, fea_only, lab_vec_dict
     )
 
     # TODO: currently end_index_lab is ignored
@@ -519,7 +525,7 @@ def read_lab_fea_refac01(cfg_file, fea_only, shared_list, output_folder):
     )
 
 
-def read_lab_fea(cfg_file, fea_only, shared_list, output_folder):
+def read_lab_fea(cfg_file, fea_only, shared_list, output_folder,lab_vec_dict=None):
 
     # Reading chunk-specific cfg file (first argument-mandatory file)
     if not (os.path.exists(cfg_file)):
@@ -571,7 +577,7 @@ def read_lab_fea(cfg_file, fea_only, shared_list, output_folder):
                 lab_opts = lab_dict[lab][2]
 
             [data_name_fea, data_set_fea, data_end_index_fea] = load_chunk(
-                fea_scp, fea_opts, lab_folder, lab_opts, cw_left, cw_right, max_seq_length, output_folder, fea_only
+                fea_scp, fea_opts, lab_folder, lab_opts, cw_left, cw_right, max_seq_length, output_folder, fea_only, lab_vec_dict
             )
 
             # making the same dimenion for all the features (compensating for different context windows)
@@ -1444,3 +1450,39 @@ def read_segments_as_bool_vec(segments_file):
     )
     assert np.sum(end - start) == np.sum(frms)
     return frms
+
+def read_all_alignments(cfg_file):
+    if not (os.path.exists(cfg_file)):
+        sys.stderr.write("ERROR: The config file %s does not exist!\n" % (cfg_file))
+        sys.exit(0)
+    else:
+        config = configparser.ConfigParser()
+        config.read(cfg_file)
+
+    output_folder = config["exp"]["out_folder"]
+    lab_dict = {}
+    lab_field = config["dataset1"]["lab"]
+    inp1="lab_cd"
+
+
+    pattern_lab = "lab_name=" + inp1 + "\nlab_folder=(.*)\nlab_opts=(.*)"
+
+    if sys.version_info[0] == 2:
+        lab_dict[inp1] = (
+            (inp1 + "," + ",".join(list(re.findall(pattern_lab, lab_field)[0]))).encode("utf8").split(",")
+        )
+    else:
+        lab_dict[inp1] = (inp1 + "," + ",".join(list(re.findall(pattern_lab, lab_field)[0]))).split(",")
+
+    lab_folder = lab_dict[inp1][1]
+    lab_opts = lab_dict[inp1][2]
+
+    lab_vec_dict = {
+        k: v
+        for k, v in read_vec_int_ark(
+            "gunzip -c " + lab_folder + "/ali*.gz | " + lab_opts + " " + lab_folder + "/final.mdl ark:- ark:-|",
+            output_folder,
+        )
+    }
+
+    return lab_vec_dict

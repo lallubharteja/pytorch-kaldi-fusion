@@ -33,6 +33,7 @@ from utils import (
     get_chunks_after_which_to_validate,
 )
 from data_io import read_lab_fea_refac01 as read_lab_fea
+from data_io import read_all_alignments
 from shutil import copyfile
 from core import read_next_chunk_into_shared_list_with_subprocess, extract_data_from_shared_list, convert_numpy_to_torch
 import re
@@ -191,6 +192,9 @@ fea_dict = []
 lab_dict = []
 arch_dict = []
 
+# Read the training alignments into memory to save time while running neural network training
+lab_vec_dict = read_all_alignments(cfg_file)
+sys.stderr.write("- Reading training alignments in memory......OK!\n")
 
 # --------TRAINING LOOP--------#
 for ep in range(N_ep):
@@ -265,6 +269,7 @@ for ep in range(N_ep):
                     config_chunk_file,
                     processed_first,
                     next_config_file,
+                    lab_vec_dict,
                 )
 
                 # update the first_processed variable

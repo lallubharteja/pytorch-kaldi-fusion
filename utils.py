@@ -21,7 +21,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 import math
 
-
 def run_command(cmd):
     """from http://blog.kagesenshi.org/2008/02/teeing-python-subprocesspopen-output.html
     """
@@ -1992,7 +1991,6 @@ def dict_fea_lab_arch(config, fea_only):
         arch_lst_used[i] = list(map(str, arch_lst_used[i]))
 
     return [fea_dict_used, lab_dict_used, arch_dict_used]
-
 
 def is_sequential(config, arch_lst):  # To cancel
     seq_model = False
