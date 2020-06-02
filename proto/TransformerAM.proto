@@ -1,0 +1,11 @@
+[proto]
+tr_dim=int
+tr_nheads=int
+tr_feed_dim=int
+tr_nlayers=int
+tr_dropout=float(0,1)
+tr_output_size=int
+tr_kernel_size=int
+tr_stride=int
+tr_out_act=str
+tr_pos_enc=bool

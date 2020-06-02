@@ -489,7 +489,7 @@ def run_nn_refac02(
      
         p = None
         if lab_vec_dict is None:
-            p = threading.Thread(target=read_lab_fea, args=(next_config_file, is_production, shared_list, output_folder))
+            p = threading.Thread(target=read_lab_fea, args=(cfg_file, is_production, shared_list, output_folder))
         else:
             p = threading.Thread(target=read_lab_fea, args=(cfg_file, is_production, shared_list, output_folder), kwargs={'lab_vec_dict':lab_vec_dict})
         p.start()

@@ -2410,7 +2410,7 @@ def forward_model(
                 if not (bool(arch_dict[inp1][2])) and len(outs_dict[inp2].shape) == 3:
                     outs_dict[inp2] = outs_dict[inp2].view(max_len * batch_size, -1)
 
-                if bool(arch_dict[inp1][2]) and len(outs_dict[inp2].shape) == 2:
+                if bool(arch_dict[inp1][2]) and len(outs_dict[inp2].shape) == 2: # check if inp1 is a sequence model and the output of the previous model has two dimensions
                     outs_dict[inp2] = outs_dict[inp2].view(max_len, batch_size, -1)
 
                 outs_dict[out_name] = nns[inp1](outs_dict[inp2])

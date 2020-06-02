@@ -193,7 +193,7 @@ lab_dict = []
 arch_dict = []
 
 # Read the training alignments into memory to save time while running neural network training
-lab_vec_dict = read_all_alignments(cfg_file)
+lab_vec = read_all_alignments(cfg_file)
 sys.stderr.write("- Reading training alignments in memory......OK!\n")
 
 # --------TRAINING LOOP--------#
@@ -252,25 +252,39 @@ for ep in range(N_ep):
 
             # if this chunk has not already been processed, do training...
             if not(os.path.exists(info_file)):
-                
+
+                                
                 sys.stderr.write('Training %s chunk = %i / %i\n' %(tr_data,ck+1, N_ck_tr))
                                  
                 # getting the next chunk
                 next_config_file = cfg_file_list[op_counter]
 
                 # run chunk processing
-                [data_name, data_set, data_end_index, fea_dict, lab_dict, arch_dict] = run_nn(
-                    data_name,
-                    data_set,
-                    data_end_index,
-                    fea_dict,
-                    lab_dict,
-                    arch_dict,
-                    config_chunk_file,
-                    processed_first,
-                    next_config_file,
-                    lab_vec_dict,
-                )
+                if ck+1 != N_ck_tr:
+                    [data_name, data_set, data_end_index, fea_dict, lab_dict, arch_dict] = run_nn(
+                        data_name,
+                        data_set,
+                        data_end_index,
+                        fea_dict,
+                        lab_dict,
+                        arch_dict,
+                        config_chunk_file,
+                        processed_first,
+                        next_config_file,
+                        lab_vec
+                    )
+                else:
+                    [data_name, data_set, data_end_index, fea_dict, lab_dict, arch_dict] = run_nn(
+                        data_name,
+                        data_set,
+                        data_end_index,
+                        fea_dict,
+                        lab_dict,
+                        arch_dict,
+                        config_chunk_file,
+                        processed_first,
+                        next_config_file,
+                    )
 
                 # update the first_processed variable
                 processed_first = False
