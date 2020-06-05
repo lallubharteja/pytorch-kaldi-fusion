@@ -8,7 +8,7 @@
 import sys
 import configparser
 import os
-from utils import is_sequential_dict, model_init, optimizer_init, forward_model, progress
+from utils import is_sequential_dict, model_init, optimizer_init, forward_model, progress, noam_decay
 from data_io import load_counts
 import numpy as np
 import random

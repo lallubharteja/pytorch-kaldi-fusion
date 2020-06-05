@@ -115,7 +115,6 @@ forward_data_lst = config["data_use"]["forward_with"].split(",")
 max_seq_length_train = config["batches"]["max_seq_length_train"]
 forward_save_files = list(map(strtobool, config["forward"]["save_out_file"].split(",")))
 
-
 sys.stderr.write("- Reading config file......OK!\n")
 
 
@@ -153,6 +152,7 @@ auto_lr_annealing = {}
 improvement_threshold = {}
 halving_factor = {}
 pt_files = {}
+warmup = {}
 
 for arch in arch_lst:
     lr[arch] = expand_str_ep(config[arch]["arch_lr"], "float", N_ep, "|", "*")
@@ -160,10 +160,11 @@ for arch in arch_lst:
         auto_lr_annealing[arch] = False
     else:
         auto_lr_annealing[arch] = True
+    if "arch_warmup_steps" in config[arch]:
+        warmup[arch] = int(config[arch]["arch_warmup_steps"])
     improvement_threshold[arch] = float(config[arch]["arch_improvement_threshold"])
     halving_factor[arch] = float(config[arch]["arch_halving_factor"])
     pt_files[arch] = config[arch]["arch_pretrain_file"]
-
 
 # If production, skip training and forward directly from last saved models
 if is_production:
@@ -248,7 +249,12 @@ for ep in range(N_ep):
             )
 
             # update learning rate in the cfg file (if needed)
-            change_lr_cfg(config_chunk_file, lr, ep)
+
+            if warmup : 
+                step = N_ck_tr * ep + ck + 1
+                change_lr_warmup_cfg(config_chunk_file, lr, warmup, step)
+            else:
+                change_lr_cfg(config_chunk_file, lr, ep)
 
             # if this chunk has not already been processed, do training...
             if not(os.path.exists(info_file)):
@@ -387,7 +393,7 @@ for ep in range(N_ep):
                     valid_loss, valid_error, valid_time = compute_avg_performance(valid_info_lst)
                     valid_peformance_dict[valid_data] = [valid_loss, valid_error, valid_time]
                     val_time_tot += valid_time
-                if not _is_first_validation(ep,ck, N_ck_tr, config):
+                if not _is_first_validation(ep,ck, N_ck_tr, config) and not warmup:
                     err_valid_mean = np.mean(np.asarray(list(valid_peformance_dict.values()))[:, 1])
                     err_valid_mean_prev = np.mean(np.asarray(list(valid_peformance_dict_prev.values()))[:, 1])
                     for lr_arch in lr.keys():

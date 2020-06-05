@@ -2800,6 +2800,19 @@ def change_lr_cfg(cfg_file, lr, ep):
     with open(cfg_file, "w") as configfile:
         config.write(configfile)
 
+def change_lr_warmup_cfg(cfg_file, lr, warmup, step ):
+
+    config = configparser.ConfigParser()
+    config.read(cfg_file)
+    field = "arch_lr"
+
+    for lr_arch in lr.keys():
+
+        config.set(lr_arch, field, str(noam_decay(step, warmup[lr_arch], lr[lr_arch][ep])))
+
+    # Write cfg_file_chunk
+    with open(cfg_file, "w") as configfile:
+        config.write(configfile)
 
 def shift(arr, num, fill_value=np.nan):
     if num >= 0:
@@ -2855,6 +2868,11 @@ def expand_str_ep(str_compact, type_inp, N_ep, split_elem, mult_elem):
 
     return lst_out
 
+def noam_decay(step, warmup_steps, base_lr):
+    """Learning rate schedule described in
+    https://arxiv.org/pdf/1706.03762.pdf.
+    """
+    return ( base_lr * min(step ** (-0.5), step * warmup_steps**(-1.5)))
 
 class LabelSmoothingLoss(nn.Module):
     """
