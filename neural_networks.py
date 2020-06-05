@@ -1867,11 +1867,11 @@ class PositionalEncoding(nn.Module):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
-        pe = th.zeros(max_len, dim_model)
-        position = th.arange(0, max_len, dtype=th.float).unsqueeze(1)
-        div_term = th.exp(th.arange(0, dim_model, 2).float() * (-math.log(10000.0) / dim_model))
-        pe[:, 0::2] = th.sin(position * div_term)
-        pe[:, 1::2] = th.cos(position * div_term)
+        pe = torch.zeros(max_len, dim_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, dim_model, 2).float() * (-math.log(10000.0) / dim_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0).transpose(0, 1)
         self.register_buffer('pe', pe)
 
@@ -1899,7 +1899,7 @@ class TransformerEncoderLayerWithConv1d(nn.Module):
 
 class TransformerAM(nn.Module):
 
-    def __init__(self, self, options, inp_dim):
+    def __init__(self, options, inp_dim):
         super(TransformerAM, self).__init__()
         self.inp_dim = inp_dim
         self.dim_model = int(options["tr_dim"])
@@ -1907,7 +1907,7 @@ class TransformerAM(nn.Module):
         self.dim_feedforward = int(options["tr_feed_dim"])
         self.nlayers = int(options["tr_nlayers"])
         self.dropout = float(options["tr_dropout"])
-        self.output_size = int(options["tr_output_size"])
+        self.out_dim = int(options["tr_output_size"])
         self.kernel_size = int(options["tr_kernel_size"])
         self.stride = int(options["tr_stride"])
         self.out_act = act_fun(options["tr_out_act"])
@@ -1915,7 +1915,7 @@ class TransformerAM(nn.Module):
 
         self.pos_encoder = PositionalEncoding(self.dim_model, self.dropout)
         self.input_layer = nn.Linear(self.inp_dim, self.dim_model)
-        self.output_layer = nn.Linear(self.dim_model, self.output_size)
+        self.output_layer = nn.Linear(self.dim_model, self.out_dim)
         encoder_norm = nn.LayerNorm(self.dim_model)
         encoder_layer = TransformerEncoderLayerWithConv1d(self.dim_model, self.nheads, self.dim_feedforward, self.dropout, self.kernel_size, self.stride)
         self.transformer = nn.TransformerEncoder(encoder_layer, self.nlayers, norm=encoder_norm)
