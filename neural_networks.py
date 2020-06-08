@@ -1891,10 +1891,10 @@ class TransformerEncoderLayerWithConv1d(nn.Module):
         self.conv1d = nn.Conv1d(dim_model, dim_model, kernel_size, stride=stride, padding=1)
 
     def forward(self, src, src_mask=None, src_key_padding_mask=None):
-       output = self.encoder_layer(src, src_mask, src_key_padding_mask)
-       output = F.relu(self.conv1d(output.permute(1, 2, 0)))
+        output = self.encoder_layer(src, src_mask, src_key_padding_mask)
+        output = F.relu(self.conv1d(output.permute(1, 2, 0)))
 
-       return output.permute(2, 0, 1)
+        return output.permute(2, 0, 1)
 
 
 class TransformerAM(nn.Module):
@@ -1907,15 +1907,15 @@ class TransformerAM(nn.Module):
         self.dim_feedforward = int(options["tr_feed_dim"])
         self.nlayers = int(options["tr_nlayers"])
         self.dropout = float(options["tr_dropout"])
-        self.out_dim = int(options["tr_output_size"])
+        self.out_dim = self.dim_model
         self.kernel_size = int(options["tr_kernel_size"])
         self.stride = int(options["tr_stride"])
-        self.out_act = act_fun(options["tr_out_act"])
+        #self.out_act = act_fun(options["tr_out_act"])
         self.pos_enc_switch = strtobool(options["tr_pos_enc"])
 
         self.pos_encoder = PositionalEncoding(self.dim_model, self.dropout)
         self.input_layer = nn.Linear(self.inp_dim, self.dim_model)
-        self.output_layer = nn.Linear(self.dim_model, self.out_dim)
+        #self.output_layer = nn.Linear(self.dim_model, self.out_dim)
         encoder_norm = nn.LayerNorm(self.dim_model)
         encoder_layer = TransformerEncoderLayerWithConv1d(self.dim_model, self.nheads, self.dim_feedforward, self.dropout, self.kernel_size, self.stride)
         self.transformer = nn.TransformerEncoder(encoder_layer, self.nlayers, norm=encoder_norm)
@@ -1925,6 +1925,6 @@ class TransformerAM(nn.Module):
         if self.pos_enc_switch:
             input = self.pos_encoder(input)
         output = self.transformer(input)
-        output = self.out_act(self.output_layer(output))
+        #output = self.out_act(self.output_layer(output))
 
         return output

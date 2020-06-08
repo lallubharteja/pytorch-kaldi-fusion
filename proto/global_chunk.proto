@@ -38,7 +38,6 @@ arch_lr=float(0,inf)
 arch_halving_factor=float(0,inf)
 arch_improvement_threshold=float(0,inf)
 arch_opt={sgd,rmsprop,adam}
-arch_warmup_steps=int(1,inf)
 
 [model]
 model_proto=path
