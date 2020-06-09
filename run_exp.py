@@ -164,7 +164,7 @@ for arch in arch_lst:
         auto_lr_annealing[arch] = True
     if "arch_warmup_steps" in config[arch]:
         warmup[arch] = float(config[arch]["arch_warmup_steps"])
-        if "arch_warmup_const" in in config[arch]:
+        if "arch_warmup_const" in config[arch]:
             cons[arch] = float(config[arch]["arch_warmup_const"])
     improvement_threshold[arch] = float(config[arch]["arch_improvement_threshold"])
     halving_factor[arch] = float(config[arch]["arch_halving_factor"])
