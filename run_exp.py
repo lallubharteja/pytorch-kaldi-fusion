@@ -26,6 +26,7 @@ from utils import (
     dump_epoch_results,
     create_curves,
     change_lr_cfg,
+    change_lr_warmup_cfg,
     expand_str_ep,
     do_validation_after_chunk,
     get_val_info_file_path,
@@ -161,7 +162,7 @@ for arch in arch_lst:
     else:
         auto_lr_annealing[arch] = True
     if "arch_warmup_steps" in config[arch]:
-        warmup[arch] = int(config[arch]["arch_warmup_steps"])
+        warmup[arch] = float(config[arch]["arch_warmup_steps"])
     improvement_threshold[arch] = float(config[arch]["arch_improvement_threshold"])
     halving_factor[arch] = float(config[arch]["arch_halving_factor"])
     pt_files[arch] = config[arch]["arch_pretrain_file"]
@@ -252,7 +253,7 @@ for ep in range(N_ep):
 
             if warmup : 
                 step = N_ck_tr * ep + ck + 1
-                change_lr_warmup_cfg(config_chunk_file, lr, warmup, step)
+                change_lr_warmup_cfg(config_chunk_file, lr, warmup, step, ep)
             else:
                 change_lr_cfg(config_chunk_file, lr, ep)
 

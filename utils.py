@@ -2800,7 +2800,7 @@ def change_lr_cfg(cfg_file, lr, ep):
     with open(cfg_file, "w") as configfile:
         config.write(configfile)
 
-def change_lr_warmup_cfg(cfg_file, lr, warmup, step ):
+def change_lr_warmup_cfg(cfg_file, lr, warmup, step, ep):
 
     config = configparser.ConfigParser()
     config.read(cfg_file)
@@ -2808,7 +2808,7 @@ def change_lr_warmup_cfg(cfg_file, lr, warmup, step ):
 
     for lr_arch in lr.keys():
 
-        config.set(lr_arch, field, str(noam_decay(step, warmup[lr_arch], lr[lr_arch][ep])))
+        config.set(lr_arch, field, str(noam_decay(step, warmup[lr_arch], float(lr[lr_arch][ep]))))
 
     # Write cfg_file_chunk
     with open(cfg_file, "w") as configfile:
