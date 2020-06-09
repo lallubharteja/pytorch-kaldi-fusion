@@ -154,6 +154,7 @@ improvement_threshold = {}
 halving_factor = {}
 pt_files = {}
 warmup = {}
+cons = {}
 
 for arch in arch_lst:
     lr[arch] = expand_str_ep(config[arch]["arch_lr"], "float", N_ep, "|", "*")
@@ -163,6 +164,8 @@ for arch in arch_lst:
         auto_lr_annealing[arch] = True
     if "arch_warmup_steps" in config[arch]:
         warmup[arch] = float(config[arch]["arch_warmup_steps"])
+        if "arch_warmup_const" in in config[arch]:
+            cons[arch] = float(config[arch]["arch_warmup_const"])
     improvement_threshold[arch] = float(config[arch]["arch_improvement_threshold"])
     halving_factor[arch] = float(config[arch]["arch_halving_factor"])
     pt_files[arch] = config[arch]["arch_pretrain_file"]
@@ -253,7 +256,7 @@ for ep in range(N_ep):
 
             if warmup : 
                 step = N_ck_tr * ep + ck + 1
-                change_lr_warmup_cfg(config_chunk_file, lr, warmup, step, ep)
+                change_lr_warmup_cfg(config_chunk_file, lr, warmup, step, ep, cons)
             else:
                 change_lr_cfg(config_chunk_file, lr, ep)
 
