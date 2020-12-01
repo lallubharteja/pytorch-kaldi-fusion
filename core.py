@@ -639,8 +639,8 @@ def run_nn_refac02(
             outs_dict["loss_final"].backward()
 
             # Gradient Clipping (th 0.1)
-            # for net in nns.keys():
-            #    torch.nn.utils.clip_grad_norm_(nns[net].parameters(), 0.1)
+            #for net in nns.keys():
+            #    torch.nn.utils.clip_grad_norm_(nns[net].parameters(), 5)
 
             for opt in optimizers.keys():
                 if not (strtobool(config[arch_dict[opt][0]]["arch_freeze"])):
